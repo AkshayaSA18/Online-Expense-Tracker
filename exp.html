@@ -1,0 +1,356 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Expense Tracker</title>
+
+    <!-- html2pdf Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- jsPDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <!-- jsPDF AutoTable Plugin -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #d3cece;
+        margin: 0;
+        padding: 0;
+      }
+
+      .container {
+        max-width: 900px;
+        margin: 50px auto;
+        padding: 20px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      }
+
+      h1 {
+        text-align: center;
+      }
+
+      form {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+      }
+
+      form input,
+      form select,
+      form button {
+        padding: 10px;
+      }
+
+      form button {
+        background: orange;
+        color: white;
+        border: none;
+        cursor: pointer;
+      }
+
+      .summary {
+        font-size: 18px;
+        margin-bottom: 15px;
+        font-weight: bold;
+      }
+
+      .record-item {
+        display: flex;
+        justify-content: space-between;
+        background: #f5f5f5;
+        padding: 10px;
+        margin-bottom: 8px;
+        border-radius: 4px;
+      }
+
+      .delete-btn {
+        background: red;
+        color: white;
+        border: none;
+        cursor: pointer;
+        padding: 5px 10px;
+        border-radius: 3px;
+      }
+
+      .pdf-btn {
+        background: green;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        cursor: pointer;
+        border-radius: 5px;
+        margin-top: 15px;
+      }
+      .logout-btn {
+        position: fixed;
+        top: 15px;
+        right: 20px;
+        padding: 10px 18px;
+        background-color: orange;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-weight: bold;
+      }
+
+      .logout-btn:hover {
+        background-color: #e69500;
+      }
+    </style>
+  </head>
+
+  <body>
+    <button class="logout-btn" onclick="logout()">Logout</button>
+
+    <div class="container" id="pdf-content">
+      <h1>Expense Tracker</h1>
+
+      <form id="expense-form">
+        <input type="text" id="name" placeholder="Description" required />
+        <input type="number" id="amount" placeholder="Amount" required />
+
+        <select id="category" required>
+          <option value="" disabled selected>Select Category</option>
+          <option value="income">Income</option>
+          <option value="expense">Expense</option>
+        </select>
+
+        <input type="date" id="date" required />
+        <button type="submit">Add</button>
+      </form>
+
+      <div class="summary">
+        Income: ₹<span id="income">0</span> | Expense: ₹<span id="expense"
+          >0</span
+        >
+        | Balance: ₹<span id="balance">0</span>
+      </div>
+
+      <div id="records"></div>
+
+      <button class="pdf-btn" onclick="downloadPDF()">
+        Download Summary PDF
+      </button>
+    </div>
+
+    <script>
+      let totalIncome = 0;
+      let totalExpense = 0;
+
+      const form = document.getElementById("expense-form");
+      const records = document.getElementById("records");
+
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+
+        const name = document.getElementById("name").value;
+        const amount = Number(document.getElementById("amount").value);
+        const category = document.getElementById("category").value;
+        const date = document.getElementById("date").value;
+
+        if (category === "income") {
+          totalIncome += amount;
+        } else {
+          totalExpense += amount;
+        }
+
+        updateSummary();
+
+        const div = document.createElement("div");
+        div.className = "record-item";
+        div.innerHTML = `
+              ${date} | ${name} | ${category} | ₹${amount}
+              <button class="delete-btn" onclick="deleteRecord(this, ${amount}, '${category}')">X</button>
+            `;
+        records.appendChild(div);
+
+        form.reset();
+      });
+
+      function deleteRecord(btn, amount, category) {
+        btn.parentElement.remove();
+
+        if (category === "income") {
+          totalIncome -= amount;
+        } else {
+          totalExpense -= amount;
+        }
+
+        updateSummary();
+      }
+
+      function updateSummary() {
+        document.getElementById("income").innerText = totalIncome;
+        document.getElementById("expense").innerText = totalExpense;
+        document.getElementById("balance").innerText =
+          totalIncome - totalExpense;
+      }
+
+      function logout() {
+        localStorage.removeItem("username");
+        localStorage.removeItem("password");
+        window.location.href = "login.html";
+      }
+      const { jsPDF } = window.jspdf;
+      function downloadPDF() {
+        const doc = new jspdf.jsPDF();
+
+        let rows = [];
+        let balance = 0;
+        let runningBalance = 0;
+
+        // Get all records from UI
+        const recordItems = document.querySelectorAll(".record-item");
+
+        if (recordItems.length === 0) {
+          alert("No records available!");
+          return;
+        }
+
+        doc.setFontSize(18);
+        doc.text("Expense Report", 14, 20);
+
+        doc.setFontSize(12);
+        doc.text("Total Income: Rs. " + totalIncome, 14, 30);
+        doc.text("Total Expense: Rs. " + totalExpense, 14, 38);
+        doc.text("Balance: Rs. " + (totalIncome - totalExpense), 14, 46);
+
+        recordItems.forEach((item) => {
+          const text = item.innerText.split("|");
+
+          const date = text[0].trim();
+          const name = text[1].trim();
+          const category = text[2].trim();
+          const amount = parseFloat(text[3].replace("₹", "").trim());
+
+          let credit = "";
+          let debit = "";
+
+          if (category === "income") {
+            credit = amount;
+            runningBalance += amount;
+          } else {
+            debit = amount;
+            runningBalance -= amount;
+          }
+
+          rows.push([date, name, credit, debit, runningBalance]);
+        });
+
+        doc.autoTable({
+          startY: 55,
+          head: [["Date", "Description", "Credit", "Debit", "Running Balance"]],
+          body: rows,
+          theme: "grid",
+        });
+
+        doc.save("Expense_Report.pdf");
+      }
+
+      // $("#downloadPDF").click(function () {
+      //   let expenses = JSON.parse(localStorage.getItem("expenses")) || [];
+
+      //   if (expenses.length === 0) {
+      //     alert("No records available!");
+      //     return;
+      //   }
+
+      //   const doc = new jsPDF();
+
+      //   doc.setFontSize(18);
+      //   doc.text("Expense Report", 14, 20);
+
+      //   let totalIncome = 0;
+      //   let totalExpense = 0;
+      //   let rows = [];
+
+      //   expenses.forEach((item) => {
+      //     if (item.type === "Income") {
+      //       totalIncome += Number(item.amount);
+      //     } else {
+      //       totalExpense += Number(item.amount);
+      //     }
+
+      //     rows.push([
+      //       item.date,
+      //       item.description,
+      //       item.type,
+      //       "Rs. " + item.amount,
+      //     ]);
+      //   });
+
+      //   let balance = totalIncome - totalExpense;
+
+      //   // Summary
+      //   doc.setFontSize(14);
+      //   doc.text("Summary", 14, 30);
+
+      //   doc.setFontSize(12);
+      //   doc.text("Total Income: Rs. " + totalIncome, 14, 38);
+      //   doc.text("Total Expense: Rs. " + totalExpense, 14, 46);
+      //   doc.text("Balance: Rs. " + balance, 14, 54);
+
+      //   // Table
+      //   doc.autoTable({
+      //     startY: 65,
+      //     head: [["Date", "Description", "Category", "Amount"]],
+      //     body: rows,
+      //     theme: "grid",
+      //   });
+
+      //   doc.save("Expense_Report.pdf");
+      // });
+
+      // const { jsPDF } = window.jspdf;
+      // $("#downloadPDF").click(function () {
+      //   let expense = JSON.parse(localStorage.getItem("expense")) || [];
+      //   if (expense.length === 0) {
+      //     alert("No records available!");
+      //     return;
+      //   }
+
+      //   const doc = new jsPDF();
+
+      //   doc.setFontSize(18);
+      //   doc.text("Expense Report", 14, 20);
+      //   let totalIncome = 0;
+      //   let totalExpense = 0;
+      //   let rows = [];
+      //   expense.forEach((item) => {
+      //     if (item.type === "Income") {
+      //       totalIncome += Number(item.amount);
+      //     } else {
+      //       totalExpense += Number(item.amount);
+      //     }
+      //     rows.push([
+      //       item.date,
+      //       item.description,
+      //       item.type,
+      //       "Rs. " + item.amount,
+      //     ]);
+      //   });
+      //   let balance = totalIncome - totalExpense;
+
+      //   doc.setFontSize(14);
+      //   doc.text("Summary", 14, 30);
+
+      // //   doc.setFontSize(12);
+      // //   doc.text("Total Income: Rs. " + totalIncome, 14, 38);
+      // //   doc.text("Total Expense: Rs. " + totalExpense, 14, 46);
+      // //   doc.text("Balance: Rs. " + balance, 14, 54);
+      // //   doc.autoTable({
+      // //     startY: 65,
+      // //     head: [["Date", "Description", "Category", "Amount"]],
+      // //     body: rows,
+      // //     theme: "grid",
+      // //   });
+
+      // //   doc.save("Expense_Report.pdf");
+      // // });
+    </script>
+  </body>
+</html>
